@@ -25,7 +25,7 @@ pub(in crate::api) use self::{
 	persistence::{EquipmentPersistence, ParticleColorPersistence, PersistQueue},
 	realtime::{
 		ConnectionCounts, ConnectionId, PlayerRuntimeState, PlaytimeSession,
-		RealtimeConnection, RealtimeState,
+		RealtimeConnection, RealtimeState, effective_status,
 	},
 };
 use uuid::Uuid;
@@ -61,6 +61,9 @@ const ASSET_REQUESTS_PER_WINDOW: u32 = 6000;
 const CHAT_WINDOW: Duration = Duration::from_secs(10);
 const CHAT_MESSAGES_PER_WINDOW: u32 = 10;
 
+const STATUS_WINDOW: Duration = Duration::from_secs(10);
+const STATUS_CHANGES_PER_WINDOW: u32 = 5;
+
 const USER_AGENT: &str = "PolyPlus Backend";
 
 #[derive(Debug, Clone)]
@@ -84,6 +87,7 @@ pub(super) struct ApiState {
 	pub(super) request_limits: RequestLimits,
 	pub(super) api_tokens: ApiTokens,
 	pub(super) chat_limit: RateLimiter<i32>,
+	pub(super) status_limit: RateLimiter<i32>,
 	pub(super) oidc_issuer: String,
 	pub(super) oidc_signing_key: Arc<OidcSigningKey>,
 	pub(super) oidc_codes: Cache<String, AuthorizationCode>,
@@ -154,6 +158,7 @@ impl ApiState {
 			},
 			api_tokens: ApiTokens::new(database.clone()),
 			chat_limit: RateLimiter::new(CHAT_MESSAGES_PER_WINDOW, CHAT_WINDOW),
+			status_limit: RateLimiter::new(STATUS_CHANGES_PER_WINDOW, STATUS_WINDOW),
 			oidc_issuer: args.oidc_issuer.clone(),
 			oidc_signing_key: Arc::new(oidc_signing_key),
 			oidc_codes: oidc::new_authorization_code_cache(),

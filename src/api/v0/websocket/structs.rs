@@ -1,6 +1,6 @@
 use std::{borrow::Cow, collections::HashMap};
 
-use entities::sea_orm_active_enums::{BodySlot, SessionInviteStatus};
+use entities::sea_orm_active_enums::{BodySlot, PlayerStatus, SessionInviteStatus};
 use schemars::{JsonSchema, json_schema};
 use serde::{Deserialize, Serialize, ser::SerializeStruct as _};
 use uuid::Uuid;
@@ -155,7 +155,9 @@ pub enum ClientBoundPacket {
 	/// A subscribed player's PolyPlus session came online or went offline.
 	PlayerPresence {
 		player: Uuid,
+		/// Kept for older clients
 		online: bool,
+		status: PlayerStatus,
 	},
 	PlayerCosmeticEquipped {
 		player: Uuid,
@@ -244,7 +246,7 @@ impl ServerBoundPacket {
 mod tests {
 	use std::collections::HashMap;
 
-	use entities::sea_orm_active_enums::BodySlot;
+	use entities::sea_orm_active_enums::{BodySlot, PlayerStatus};
 	use uuid::Uuid;
 
 	use super::{ClientBoundPacket, ServerBoundPacket};
@@ -335,11 +337,13 @@ mod tests {
 		let packet = ClientBoundPacket::PlayerPresence {
 			player,
 			online: true,
+			status: PlayerStatus::Online,
 		};
 
 		let serialized = serde_json::to_value(packet).expect("packet should serialize");
 		assert_eq!(serialized["type"], "PlayerPresence");
 		assert_eq!(serialized["player"], player.to_string());
 		assert_eq!(serialized["online"], true);
+		assert_eq!(serialized["status"], "online");
 	}
 }

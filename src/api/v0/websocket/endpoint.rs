@@ -14,7 +14,7 @@ use axum::{
 	routing::get,
 };
 use chrono::{DateTime, Utc};
-use entities::sea_orm_active_enums::BodySlot;
+use entities::sea_orm_active_enums::{BodySlot, PlayerStatus};
 use http::{Response, StatusCode};
 use sea_orm::{ColumnTrait as _, EntityTrait as _, QueryFilter};
 use tokio::sync::mpsc;
@@ -25,7 +25,7 @@ use crate::api::{
 	ApiState,
 	state::{
 		ConnectionId, EquipmentPersistence, ParticleColorPersistence, PlayerRuntimeState,
-		PlaytimeSession, RealtimeConnection,
+		PlaytimeSession, RealtimeConnection, effective_status,
 	},
 	v0::{
 		account::{AuthenticatedPlayer, ClientKind},
@@ -330,6 +330,7 @@ async fn register_connection(
 	tx: mpsc::UnboundedSender<ClientBoundPacket>,
 	equipped: HashMap<BodySlot, i32>,
 	particle_color: Option<i32>,
+	status_override: Option<PlayerStatus>,
 ) -> ConnectionId {
 	let connection_id = Uuid::new_v4();
 
@@ -368,6 +369,20 @@ async fn register_connection(
 		}
 	}
 
+	// The row loaded at handshake can predate a status change made since.
+	// shortcut: narrows the race to this read, not closed; lock per player if it ever matters.
+	let status_override = match entities::prelude::User::find_by_id(player_id)
+		.one(&state.database)
+		.await
+	{
+		Ok(Some(user)) => user.status_override,
+		Ok(None) => status_override,
+		Err(error) => {
+			warn!("Unable to reload status override: {error}");
+			status_override
+		}
+	};
+
 	{
 		let mut player_runtime = state.realtime.player_runtime.write().await;
 		player_runtime
@@ -375,21 +390,21 @@ async fn register_connection(
 			.and_modify(|runtime| {
 				runtime.equipped = equipped.clone();
 				runtime.particle_color = particle_color;
+				runtime.status_override = status_override;
 			})
 			.or_insert_with(|| PlayerRuntimeState {
 				equipped,
 				active_emote: None,
 				particle_color,
+				status_override,
 			});
 	}
 
-	// Notify anyone already watching this player that they are now online.
-	if is_first_connection {
-		broadcast_to_watchers(state, owner, || ClientBoundPacket::PlayerPresence {
-			player: owner,
-			online: true,
-		})
-		.await;
+	// Notify anyone already watching this player that they came online,
+	// unless they chose to stay offline.
+	let status = effective_status(true, status_override);
+	if is_first_connection && status != PlayerStatus::Offline {
+		announce_presence(state, owner, status).await;
 	}
 
 	connection_id
@@ -468,15 +483,16 @@ async fn unregister_connection(state: &ApiState, connection_id: ConnectionId) {
 	};
 
 	if !owner_still_connected {
-		if let Some(runtime) = state
+		let status_override = state
 			.realtime
 			.player_runtime
 			.write()
 			.await
 			.get_mut(&connection.owner)
-		{
-			runtime.active_emote = None;
-		}
+			.and_then(|runtime| {
+				runtime.active_emote = None;
+				runtime.status_override
+			});
 
 		let session = state
 			.realtime
@@ -507,14 +523,11 @@ async fn unregister_connection(state: &ApiState, connection_id: ConnectionId) {
 
 		crate::api::v0::sessions::expire_sessions_after_grace(state, connection.owner);
 
-		// Notify anyone watching this player that they are now offline.
-		broadcast_to_watchers(state, connection.owner, || {
-			ClientBoundPacket::PlayerPresence {
-				player: connection.owner,
-				online: false,
-			}
-		})
-		.await;
+		// Notify anyone watching this player that they are now offline, unless
+		// they already appeared offline.
+		if effective_status(true, status_override) != PlayerStatus::Offline {
+			announce_presence(state, connection.owner, PlayerStatus::Offline).await;
+		}
 	}
 
 	let mut orphaned = {
@@ -620,6 +633,7 @@ async fn subscribe(
 					equipped: equipped.clone(),
 					active_emote: None,
 					particle_color: loaded_particle_colors.get(player).copied().flatten(),
+					status_override: None,
 				});
 		}
 	}
@@ -630,13 +644,20 @@ async fn subscribe(
 		}
 	}
 
-	// A player is a live PolyPlus user if they currently hold a connection.
+	// A player is a live PolyPlus user if they hold a connection and have not
+	// chosen to appear offline.
 	let users = {
 		let connections_by_owner = state.realtime.connections_by_owner.read().await;
+		let player_runtime = state.realtime.player_runtime.read().await;
 		newly_subscribed
 			.iter()
 			.copied()
-			.filter(|player| connections_by_owner.contains_key(player))
+			.filter(|player| {
+				let status_override =
+					player_runtime.get(player).and_then(|runtime| runtime.status_override);
+				effective_status(connections_by_owner.contains_key(player), status_override)
+					!= PlayerStatus::Offline
+			})
 			.collect::<Vec<_>>()
 	};
 
@@ -839,6 +860,15 @@ pub(crate) async fn announce_particle_color_change(
 	}
 }
 
+pub(crate) async fn announce_presence(state: &ApiState, player: Uuid, status: PlayerStatus) {
+	broadcast_to_watchers(state, player, || ClientBoundPacket::PlayerPresence {
+		player,
+		online: status != PlayerStatus::Offline,
+		status,
+	})
+	.await;
+}
+
 pub(crate) async fn broadcast_all(
 	state: &ApiState,
 	mut make_packet: impl FnMut() -> ClientBoundPacket,
@@ -1020,6 +1050,7 @@ async fn endpoint(
 			tx,
 			equipped,
 			player.particle_color,
+			player.status_override,
 		)
 		.await;
 

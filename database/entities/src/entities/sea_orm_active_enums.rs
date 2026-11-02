@@ -407,3 +407,24 @@ pub enum LinkProvider {
 	#[sea_orm(string_value = "discord")]
 	Discord,
 }
+#[derive(
+	Debug,
+	Clone,
+	Copy,
+	PartialEq,
+	Eq,
+	EnumIter,
+	DeriveActiveEnum,
+	schemars :: JsonSchema,
+	serde :: Deserialize,
+	serde :: Serialize,
+	Hash,
+)]
+#[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "player_status")]
+#[serde(rename_all = "snake_case")]
+pub enum PlayerStatus {
+	#[sea_orm(string_value = "online")]
+	Online,
+	#[sea_orm(string_value = "offline")]
+	Offline,
+}

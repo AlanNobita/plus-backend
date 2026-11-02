@@ -2,6 +2,7 @@ mod link_puid;
 pub(crate) mod links;
 mod login;
 pub(super) mod mods;
+mod status;
 
 use aide::{OperationInput, axum::ApiRouter, openapi::SecurityRequirement};
 use axum::{
@@ -34,6 +35,7 @@ pub(super) async fn setup_router() -> ApiRouter<ApiState> {
 		.merge(link_puid::router())
 		.merge(links::router())
 		.merge(mods::router())
+		.merge(status::router())
 }
 
 #[derive(Debug)]
