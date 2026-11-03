@@ -4,7 +4,7 @@ use aide::{
 };
 use axum::{Json, extract::State, http::StatusCode};
 use chrono::{DateTime, FixedOffset};
-use entities::sea_orm_active_enums::RelationshipKind;
+use entities::sea_orm_active_enums::{PlayerStatus, RelationshipKind};
 use schemars::JsonSchema;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serde::Serialize;
@@ -12,6 +12,7 @@ use uuid::Uuid;
 
 use crate::api::{
 	ApiState,
+	state::effective_status,
 	v0::account::AuthenticatedPlayer,
 	v0::social::{SocialError, canonical_pair, find_user_by_uuid},
 };
@@ -21,7 +22,9 @@ pub struct Friend {
 	player: Uuid,
 	kind: RelationshipKind,
 	since: DateTime<FixedOffset>,
+	/// Kept for older clients
 	online: bool,
+	status: PlayerStatus,
 }
 
 fn list_doc(op: TransformOperation) -> TransformOperation {
@@ -79,7 +82,7 @@ async fn list(
 		.all(&state.database)
 		.await?
 		.into_iter()
-		.map(|user| (user.id, user.minecraft_uuid))
+		.map(|user| (user.id, (user.minecraft_uuid, user.status_override)))
 		.collect::<std::collections::HashMap<_, _>>();
 
 	let online = state.realtime.connections_by_owner.read().await;
@@ -92,11 +95,15 @@ async fn list(
 				} else {
 					row.user_a_id
 				};
-				others.get(&other_id).map(|uuid| Friend {
-					player: *uuid,
-					kind: row.kind,
-					since: row.created_at,
-					online: online.contains_key(uuid),
+				others.get(&other_id).map(|(uuid, status_override)| {
+					let status = effective_status(online.contains_key(uuid), *status_override);
+					Friend {
+						player: *uuid,
+						kind: row.kind,
+						since: row.created_at,
+						online: status != PlayerStatus::Offline,
+						status,
+					}
 				})
 			})
 			.collect(),

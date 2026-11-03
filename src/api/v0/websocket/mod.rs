@@ -6,7 +6,8 @@ mod endpoint;
 pub mod structs;
 
 pub(crate) use endpoint::{
-	announce_equipment_change, announce_particle_color_change, broadcast_all,
+	announce_equipment_change, announce_particle_color_change, announce_presence,
+	broadcast_all,
 	send_to_owner, unequip_revoked,
 };
 

@@ -4,7 +4,7 @@ use std::{
 };
 
 use chrono::{DateTime, Utc};
-use entities::sea_orm_active_enums::BodySlot;
+use entities::sea_orm_active_enums::{BodySlot, PlayerStatus};
 use schemars::JsonSchema;
 use serde::Serialize;
 use tokio::sync::{RwLock, mpsc};
@@ -64,6 +64,35 @@ pub struct PlayerRuntimeState {
 	pub equipped: HashMap<BodySlot, i32>,
 	pub active_emote: Option<i32>,
 	pub particle_color: Option<i32>,
+	/// The status the player picked, `None` meaning derive it from their connection.
+	pub status_override: Option<PlayerStatus>,
+}
+
+/// The status other players see: offline while disconnected, otherwise the
+/// player's pick, defaulting to online.
+pub fn effective_status(
+	connected: bool,
+	status_override: Option<PlayerStatus>,
+) -> PlayerStatus {
+	if !connected {
+		return PlayerStatus::Offline;
+	}
+	status_override.unwrap_or(PlayerStatus::Online)
+}
+
+#[cfg(test)]
+mod status_tests {
+	use super::*;
+
+	#[test]
+	fn effective_status_respects_connection_then_override() {
+		use PlayerStatus::*;
+		assert_eq!(effective_status(false, None), Offline);
+		assert_eq!(effective_status(false, Some(Online)), Offline);
+		assert_eq!(effective_status(true, None), Online);
+		assert_eq!(effective_status(true, Some(Offline)), Offline);
+		assert_eq!(effective_status(true, Some(Online)), Online);
+	}
 }
 
 pub type PlaytimeSessions = Arc<RwLock<HashMap<Uuid, PlaytimeSession>>>;
