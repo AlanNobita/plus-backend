@@ -77,6 +77,8 @@ mod m20261017_000000_create_linked_accounts;
 mod m20261017_000000_session_game_info;
 mod m20261028_000000_create_oneclient_sync;
 mod m20261102_000000_player_status_override;
+mod m20261102_000001_add_party_group_kind;
+mod m20261102_000002_create_parties;
 
 pub struct Migrator;
 
@@ -161,6 +163,8 @@ impl MigratorTrait for Migrator {
 			Box::new(m20261017_000000_session_game_info::Migration),
 			Box::new(m20261028_000000_create_oneclient_sync::Migration),
 			Box::new(m20261102_000000_player_status_override::Migration),
+			Box::new(m20261102_000001_add_party_group_kind::Migration),
+			Box::new(m20261102_000002_create_parties::Migration),
 		]
 	}
 }

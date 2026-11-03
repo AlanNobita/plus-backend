@@ -4,6 +4,7 @@ mod grants;
 mod hello;
 mod listings;
 mod oneclient;
+pub(super) mod party;
 mod paynow;
 mod referrals;
 mod store;
@@ -24,6 +25,7 @@ pub(super) async fn setup_router() -> ApiRouter<ApiState> {
 		.merge(discounts::router())
 		.merge(grants::router())
 		.merge(listings::router())
+		.merge(party::router())
 		.merge(referrals::router())
 		.merge(store::router())
 		.merge(hello::router())
