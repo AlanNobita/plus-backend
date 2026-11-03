@@ -39,6 +39,7 @@ use crate::{
 			cosmetics::CachedAssetInfo,
 			oidc::{self, AuthorizationCode, OidcSigningKey},
 		},
+		v1::SyncStorage,
 	},
 	commands::ServeArgs,
 	paynow::PayNowClient,
@@ -95,6 +96,7 @@ pub(super) struct ApiState {
 	pub(super) special_chat_auto_reply: Option<String>,
 	pub(super) discord: Option<DiscordOAuth>,
 	pub(super) link_states: Cache<String, i32>,
+	pub(super) oneclient_sync: Option<SyncStorage>,
 	pub(super) instrumentation: Instrumentation,
 }
 
@@ -166,6 +168,7 @@ impl ApiState {
 			special_chat_auto_reply: args.special_chat_auto_reply.clone(),
 			discord: DiscordOAuth::from_args(args),
 			link_states: links::new_link_state_cache(),
+			oneclient_sync: SyncStorage::connect(args),
 			instrumentation,
 			s3_public_url: args.s3_public_url.trim_end_matches('/').into(),
 			s3_bucket,
