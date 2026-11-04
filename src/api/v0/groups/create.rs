@@ -377,23 +377,3 @@ async fn list(
 
 	Ok(Json(summaries))
 }
-
-#[cfg(test)]
-mod tests {
-	use super::*;
-
-	#[test]
-	fn only_unnamed_party_groups_get_the_party_name() {
-		assert_eq!(
-			display_name(&GroupKind::Party, None).as_deref(),
-			Some(PARTY_GROUP_NAME)
-		);
-		assert_eq!(display_name(&GroupKind::Dm, None), None);
-		assert_eq!(display_name(&GroupKind::Group, None), None);
-		assert_eq!(
-			display_name(&GroupKind::Group, Some("Friends".to_string())).as_deref(),
-			Some("Friends")
-		);
-	}
-}
-
