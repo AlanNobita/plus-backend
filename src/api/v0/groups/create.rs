@@ -125,6 +125,8 @@ async fn delegations(
 	))
 }
 
+const PARTY_GROUP_NAME: &str = "Party";
+
 async fn summarize(
 	state: &ApiState,
 	group: entities::groups::Model,
@@ -180,12 +182,16 @@ async fn summarize(
 		special: group.kind == GroupKind::Group
 			&& group.owner_id.is_none()
 			&& group.name.is_none(),
+		name: display_name(&group.kind, group.name),
 		kind: group.kind,
-		name: group.name,
 		members,
 		last_message,
 		unread,
 	})
+}
+
+fn display_name(kind: &GroupKind, name: Option<String>) -> Option<String> {
+	name.or_else(|| (*kind == GroupKind::Party).then(|| PARTY_GROUP_NAME.to_string()))
 }
 
 pub(crate) async fn get_or_create_dm_group(
@@ -371,4 +377,3 @@ async fn list(
 
 	Ok(Json(summaries))
 }
-
