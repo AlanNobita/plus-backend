@@ -8,7 +8,7 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md)
 
 ## License
 
-All code in this repository is licensed under the [PolyForm Shield License 1.0.0](LICENSE.md).
+All code in this repository is licensed under the [AGPL 3.0](LICENSE.md).
 
 ### Contributions
 
