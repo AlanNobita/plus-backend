@@ -8,7 +8,7 @@ use entities::{
 	group_members, groups, parties, party_members,
 	prelude::*,
 	sea_orm_active_enums::{
-		GroupKind, GroupMemberRole, PartyInvitePolicy, PartyVoiceMode, PlayerStatus,
+		GroupKind, GroupMemberRole, PartyInvitePolicy, PartyVoiceMode,
 	},
 	user,
 };
@@ -31,7 +31,6 @@ use super::{
 use crate::api::{
 	ApiState,
 	eos::spawn_with_retries,
-	state::effective_status,
 	v0::websocket::{send_to_owner, structs::ClientBoundPacket},
 };
 
@@ -194,10 +193,7 @@ pub(super) async fn party_view(
 		let connections = state.realtime.connections_by_owner.read().await;
 		members
 			.iter()
-			.filter(|(_, user)| {
-				let connected = connections.contains_key(&user.minecraft_uuid);
-				effective_status(connected, user.status_override) != PlayerStatus::Offline
-			})
+			.filter(|(_, user)| connections.contains_key(&user.minecraft_uuid))
 			.map(|(_, user)| user.minecraft_uuid)
 			.collect::<HashSet<_>>()
 	};
@@ -724,17 +720,6 @@ async fn flush_state(state: &ApiState, party: Uuid, player: Uuid) {
 }
 
 async fn forward_state(state: &ApiState, party: Uuid, player: Uuid) {
-	let status_override = state
-		.realtime
-		.player_runtime
-		.read()
-		.await
-		.get(&player)
-		.and_then(|runtime| runtime.status_override);
-	if effective_status(true, status_override) == PlayerStatus::Offline {
-		return;
-	}
-
 	let Some(member_state) = state.party.state_of(player).await else {
 		return;
 	};

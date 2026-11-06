@@ -74,9 +74,9 @@ fn endpoint_doc(op: TransformOperation) -> TransformOperation {
 		.description(
 			"Sets the status other players see while the authorized player is connected. \
 			 `online` clears any override, so the status follows the connection again. \
-			 A disconnected player always shows as offline. This only hides presence, \
-			 including online and live state in the party roster: \
-			 cosmetic and emote updates still reach players who can see them in-game.",
+			 A disconnected player always shows as offline. This only hides presence \
+			 from friends: party members always see the real online and live state, \
+			 and cosmetic and emote updates still reach players who can see them in-game.",
 		)
 		.tag("account")
 }
