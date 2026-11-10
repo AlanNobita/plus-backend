@@ -2,6 +2,7 @@ mod invites;
 mod join;
 mod live;
 pub(in crate::api) mod models;
+mod ping;
 mod play;
 mod roster;
 mod routes;
@@ -22,6 +23,7 @@ pub(in crate::api) use self::{
 		cancel_hosted_joins_for_session, request_hosted_join, respond_to_hosted_join,
 	},
 	live::PartyRuntime,
+	ping::{Ping, PingReply, PingRequest, clear_ping, reply_to_ping, send_ping},
 	play::{cancel_play_together, respond_to_play_together, start_play_together},
 	roster::{
 		apply_member_state, on_player_offline, on_player_online, refresh_party,

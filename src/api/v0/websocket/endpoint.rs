@@ -1069,6 +1069,16 @@ async fn handle_packet(
 			)
 			.await?;
 		}
+		ServerBoundPacket::SendPing(request) => {
+			crate::api::v1::party::send_ping(state, player, request).await?;
+		}
+		ServerBoundPacket::ClearPing { id } => {
+			crate::api::v1::party::clear_ping(state, player, &id).await?;
+		}
+		ServerBoundPacket::ReplyPing { id, owner, reply } => {
+			crate::api::v1::party::reply_to_ping(state, player, &id, &owner, &reply)
+				.await?;
+		}
 	}
 
 	Ok(())

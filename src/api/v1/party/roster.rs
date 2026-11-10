@@ -537,7 +537,7 @@ fn leave_voice_room(state: &ApiState, party: Uuid, user: &user::Model) {
 	});
 }
 
-async fn lookup_party_id(
+pub(super) async fn lookup_party_id(
 	state: &ApiState,
 	player: Uuid,
 	user_id: Option<i32>,

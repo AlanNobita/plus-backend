@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize, ser::SerializeStruct as _};
 use uuid::Uuid;
 
 use crate::api::v1::party::{
-	PartyError,
+	PartyError, Ping, PingReply, PingRequest,
 	models::{
 		HostedJoinResult, MemberState, Party, PartyInvite, PartyLeftReason,
 		PlayDestination, PlayEndReason, PlayReason, PlayResponse,
@@ -46,6 +46,8 @@ pub enum WebsocketError {
 	RateLimited,
 	#[error("That Play together is no longer active")]
 	PlayTogetherInactive,
+	#[error("Invalid ping: {0}")]
+	InvalidPing(&'static str),
 	#[error(transparent)]
 	Party(PartyError),
 }
@@ -82,6 +84,7 @@ impl WebsocketError {
 		"join_request_not_found",
 		"member_not_found",
 		"not_host",
+		"invalid_ping",
 	];
 
 	/// Whether this error describes an internal failure whose message must not
@@ -116,6 +119,7 @@ impl WebsocketError {
 			Self::NotPartyLeader => Self::ERROR_CODES[5],
 			Self::RateLimited => Self::ERROR_CODES[6],
 			Self::PlayTogetherInactive => Self::ERROR_CODES[7],
+			Self::InvalidPing(_) => Self::ERROR_CODES[19],
 			Self::Party(error) if error.is_internal() => Self::ERROR_CODES[1],
 			Self::Party(error) => error.code(),
 		}
@@ -208,6 +212,15 @@ pub enum ServerBoundPacket {
 	HostedJoinResponse {
 		request_id: Uuid,
 		allow: bool,
+	},
+	SendPing(PingRequest),
+	ClearPing {
+		id: String,
+	},
+	ReplyPing {
+		id: String,
+		owner: String,
+		reply: String,
 	},
 }
 
@@ -366,6 +379,23 @@ pub enum ClientBoundPacket {
 		session_id: Uuid,
 		result: HostedJoinResult,
 		invite_id: Option<i32>,
+	},
+	PartyPing {
+		from: Uuid,
+		sent_at: i64,
+		#[serde(flatten)]
+		ping: Ping,
+	},
+	PartyPingCleared {
+		id: Uuid,
+		from: Uuid,
+	},
+	PartyPingReply {
+		id: Uuid,
+		owner: Uuid,
+		from: Uuid,
+		reply: PingReply,
+		sent_at: i64,
 	},
 	/// An error response from the server
 	Error {
