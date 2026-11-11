@@ -100,6 +100,10 @@ pub(super) struct ApiState {
 		PersistQueue<EquipmentPersistence, (Uuid, entities::sea_orm_active_enums::BodySlot)>,
 	pub(super) particle_color_persist: PersistQueue<ParticleColorPersistence>,
 	pub(super) admin_password: String,
+	/// Offline players the operator vouched for on a private instance, by username.
+	/// Empty means offline accounts cannot sign in. Matching usernames are
+	/// trusted without any proof of ownership — private deployments only.
+	pub(super) offline_allowlist: HashSet<String>,
 	pub(super) render_service_url: String,
 	pub(super) global_chat_cooldown: Cache<i32, ()>,
 	pub(super) checkout_limit: RateLimiter<IpAddr>,
@@ -179,6 +183,13 @@ impl ApiState {
 				database.clone(),
 			),
 			admin_password: args.admin_password.clone(),
+		offline_allowlist: args
+			.offline_allowlist
+			.split(',')
+			.map(str::trim)
+			.filter(|name| !name.is_empty())
+			.map(ToOwned::to_owned)
+			.collect(),
 			render_service_url: args.render_service_url.clone(),
 			global_chat_cooldown: Cache::builder()
 				.time_to_live(GLOBAL_CHAT_COOLDOWN)

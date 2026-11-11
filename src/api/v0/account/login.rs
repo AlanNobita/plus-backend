@@ -175,31 +175,7 @@ async fn endpoint(
 	ClientCountry(country): ClientCountry,
 	Query(query): Query<LoginQuery>,
 ) -> Result<Json<LoginResponse>, LoginError> {
-	let response = state
-		.client
-		.get("https://sessionserver.mojang.com/session/minecraft/hasJoined")
-		.query(&[
-			("username", query.username.clone()),
-			("serverId", query.server_id),
-		])
-		.send()
-		.await
-		.map_err(LoginError::SessionserverAuthentication)?
-		.error_for_status()
-		.map_err(LoginError::SessionserverAuthentication)?;
-
-	// 200 w/ JSON data is returned on success
-	if response.status() != StatusCode::OK {
-		return Err(LoginError::Unauthorized);
-	}
-
-	let body = response
-		.text()
-		.await
-		.map_err(LoginError::SessionserverAuthentication)?;
-
-	let parsed: SessionserverLoginSuccess =
-		serde_json::from_str(&body).map_err(|_| LoginError::Unauthorized)?;
+	let parsed = authenticate(&state, &query.username, &query.server_id).await?;
 	let player =
 		entities::prelude::User::get_or_create(&state.database, parsed.id).await?;
 	entities::prelude::User::set_username(&state.database, player.id, &query.username)
@@ -243,6 +219,74 @@ async fn endpoint(
 	tracing::debug!(%token, %player.id, "authenticated player");
 
 	Ok(Json(LoginResponse { token }))
+}
+
+/// Which identity provider can vouch for this player, in order:
+/// the operator's offline allowlist (a private instance only), Mojang, or Ely.
+async fn authenticate(
+	state: &ApiState,
+	username: &str,
+	server_id: &str,
+) -> Result<SessionserverLoginSuccess, LoginError> {
+	// Private-instance trust: the operator vouched for the allowlist, so an
+	// offline player is accepted on the strength of their username alone.
+	// Never trust this outside a private deployment — there is no proof of
+	// ownership.
+	if state.offline_allowlist.contains(username) {
+		return Ok(SessionserverLoginSuccess {
+			id: crate::utils::offline::offline_uuid(username),
+		});
+	}
+
+	if let Some(joined) = has_joined(
+		&state.client,
+		"https://sessionserver.mojang.com/session/minecraft/hasJoined",
+		username,
+		server_id,
+	)
+	.await?
+	{
+		return Ok(joined);
+	}
+
+	has_joined(
+		&state.client,
+		"https://authserver.ely.by/session/hasJoined",
+		username,
+		server_id,
+	)
+	.await?
+	.ok_or(LoginError::Unauthorized)
+}
+
+async fn has_joined(
+	client: &reqwest::Client,
+	url: &str,
+	username: &str,
+	server_id: &str,
+) -> Result<Option<SessionserverLoginSuccess>, LoginError> {
+	let response = client
+		.get(url)
+		.query(&[
+			("username", username.to_owned()),
+			("serverId", server_id.to_owned()),
+		])
+		.send()
+		.await
+		.map_err(LoginError::SessionserverAuthentication)?;
+
+	// Ely answers 401 for an unknown serverId, Mojang answers 204/401; both
+	// are "not authenticated" here.
+	if response.status() != StatusCode::OK {
+		return Ok(None);
+	}
+
+	let body = response
+		.text()
+		.await
+		.map_err(LoginError::SessionserverAuthentication)?;
+
+	Ok(serde_json::from_str(&body).ok())
 }
 
 #[cfg(test)]

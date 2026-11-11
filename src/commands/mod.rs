@@ -125,6 +125,16 @@ pub(crate) struct ServeArgs {
 	/// Password for admin operations
 	#[bpaf(long("admin-password"), env("ADMIN_PASSWORD"))]
 	pub(crate) admin_password: String,
+	/// Comma-separated usernames allowed to log in as offline players on a
+	/// private instance. Empty means offline accounts cannot sign in. Offline
+	/// usernames are only checked against this list — there is no proof that
+	/// the caller owns the account, so only use it on a private deployment.
+	#[bpaf(
+		long("offline-allowlist"),
+		env("OFFLINE_ALLOWLIST"),
+		fallback(String::new())
+	)]
+	pub(crate) offline_allowlist: String,
 	#[bpaf(
 		long("render-service-url"),
 		env("RENDER_SERVICE_URL"),
